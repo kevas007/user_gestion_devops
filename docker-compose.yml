@@ -9,11 +9,9 @@ services:
       - "3000:3000"
     env_file:
       - ./backend/.env      # lit MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE…
-    environment:
-      # surcharge uniquement l’hôte MySQL
-      - MYSQL_HOST=db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: on-failure
     networks:
       - app-network
@@ -25,6 +23,11 @@ services:
     env_file:
       - ./backend/.env      # ou un .env spécifique pour le DB
     command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - mysql_data:/var/lib/mysql
     restart: always
