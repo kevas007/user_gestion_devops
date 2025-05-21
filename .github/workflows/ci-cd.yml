@@ -59,7 +59,7 @@ jobs:
           pytest --junitxml=reports/backend-results.xml
 
       - name: Upload backend report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v2.3.1
         with:
           name: backend-tests-report
           path: backend/reports/backend-results.xml
@@ -88,7 +88,7 @@ jobs:
           npm test -- --ci --reporters=jest-junit
 
       - name: Upload frontend report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v2.3.1
         with:
           name: frontend-tests-report
           path: frontend/junit.xml
