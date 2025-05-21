@@ -1,4 +1,3 @@
-# .github/workflows/ci-cd.yml
 name: CI/CD Gestion Users
 
 on:
@@ -7,13 +6,8 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  REGISTRY: ghcr.io/${{ github.repository_owner }}
-  IMAGE_TAG: ${{ github.sha }}
-
 jobs:
   test-backend:
-    name: 🧪 Tests Backend
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -23,15 +17,11 @@ jobs:
           MYSQL_DATABASE: appdb
           MYSQL_USER: user
           MYSQL_PASSWORD: pass
-        ports:
-          - 3306:3306
         options: |
           --health-cmd="mysqladmin ping -h localhost -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-    env:
-      DATABASE_URL: mysql+pymysql://user:pass@127.0.0.1:3306/appdb
     steps:
       - uses: actions/checkout@v3
 
@@ -40,36 +30,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install backend dependencies
+      - name: Install deps
         run: |
           cd backend
           pip install -r requirements.txt
 
-      - name: Wait for MySQL to be ready
+      - name: Wait for MySQL
         run: |
-          for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -uroot -proot && break
-            sleep 2
-          done
+          for i in {1..30}; do mysqladmin ping -h127.0.0.1 -uroot -proot && break; sleep 2; done
 
-      - name: Apply database migrations
+      - name: Migrations & Tests
         run: |
           cd backend
           flask db upgrade
-
-      - name: Run backend tests
-        run: |
-          cd backend
           pytest --junitxml=reports/backend-results.xml
 
-      - name: Upload backend test report
-        uses: actions/upload-artifact@v3.1.1
+      - name: Upload backend report
+        uses: actions/upload-artifact@v3.1.3
         with:
           name: backend-tests-report
           path: backend/reports/backend-results.xml
 
   test-frontend:
-    name: 🧪 Tests Frontend
     runs-on: ubuntu-latest
     needs: test-backend
     steps:
@@ -80,42 +62,37 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install frontend dependencies
+      - name: Install & Test Frontend
         run: |
           cd frontend
           npm ci
-
-      - name: Run frontend tests
-        run: |
-          cd frontend
           npm test -- --ci --reporters=jest-junit
 
-      - name: Upload frontend test report
-        uses: actions/upload-artifact@v3.1.1
+      - name: Upload frontend report
+        uses: actions/upload-artifact@v3.1.3
         with:
           name: frontend-tests-report
           path: frontend/junit.xml
 
   build-and-push:
-    name: 📦 Build & Push Docker Images
     runs-on: ubuntu-latest
     needs: [ test-backend, test-frontend ]
     steps:
       - uses: actions/checkout@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push backend image
+      - name: Build & Push Backend
         run: |
-          docker build -t ${{ env.REGISTRY }}/gestion-users-backend:${{ env.IMAGE_TAG }} ./backend
-          docker push ${{ env.REGISTRY }}/gestion-users-backend:${{ env.IMAGE_TAG }}
+          docker build -t ghcr.io/${{ github.repository_owner }}/gestion-users-backend:${{ github.sha }} ./backend
+          docker push ghcr.io/${{ github.repository_owner }}/gestion-users-backend:${{ github.sha }}
 
-      - name: Build & push frontend image
+      - name: Build & Push Frontend
         run: |
-          docker build -t ${{ env.REGISTRY }}/gestion-users-frontend:${{ env.IMAGE_TAG }} ./frontend
-          docker push ${{ env.REGISTRY }}/gestion-users-frontend:${{ env.IMAGE_TAG }}
+          docker build -t ghcr.io/${{ github.repository_owner }}/gestion-users-frontend:${{ github.sha }} ./frontend
+          docker push ghcr.io/${{ github.repository_owner }}/gestion-users-frontend:${{ github.sha }}
