@@ -6,25 +6,34 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     env_file:
-      - ./backend/.env      # lit MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE…
+      - ./backend/.env
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
     depends_on:
       db:
         condition: service_healthy
     restart: on-failure
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   db:
     image: mysql:8.0
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     env_file:
-      - ./backend/.env      # ou un .env spécifique pour le DB
-    command: --default-authentication-plugin=mysql_native_password
+      - ./backend/.env
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --sql-mode="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,20 +42,34 @@ services:
     restart: always
     networks:
       - app-network
+    # Suppression des options de sécurité incompatibles avec Windows
+    # cap_drop et cap_add sont spécifiques à Linux
+    # security_opt avec seccomp n'est pas disponible sur Windows
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "${FRONTEND_PORT:-8080}:80"
+    env_file:
+      - ./frontend/.env
+    environment:
+      - API_URL=http://api:3000
     depends_on:
       - api
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   mysql_data:
+    name: ${COMPOSE_PROJECT_NAME:-gestion-users}_mysql_data
 
 networks:
   app-network:
