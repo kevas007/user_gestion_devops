@@ -1,3 +1,4 @@
+# .github/workflows/ci-cd.yml
 name: CI/CD Gestion Users
 
 on:
@@ -24,7 +25,7 @@ jobs:
           MYSQL_PASSWORD: pass
         ports:
           - 3306:3306
-        options: >-
+        options: |
           --health-cmd="mysqladmin ping -h localhost -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
@@ -44,14 +45,14 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
-      - name: Wait for MySQL
+      - name: Wait for MySQL to be ready
         run: |
           for i in {1..30}; do
             mysqladmin ping -h 127.0.0.1 -uroot -proot && break
             sleep 2
           done
 
-      - name: Apply migrations
+      - name: Apply database migrations
         run: |
           cd backend
           flask db upgrade
@@ -62,7 +63,7 @@ jobs:
           pytest --junitxml=reports/backend-results.xml
 
       - name: Upload backend test report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: backend-tests-report
           path: backend/reports/backend-results.xml
@@ -70,6 +71,7 @@ jobs:
   test-frontend:
     name: 🧪 Tests Frontend
     runs-on: ubuntu-latest
+    needs: test-backend
     steps:
       - uses: actions/checkout@v3
 
@@ -78,14 +80,18 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install frontend dependencies & test
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
+
+      - name: Run frontend tests
+        run: |
+          cd frontend
           npm test -- --ci --reporters=jest-junit
 
       - name: Upload frontend test report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: frontend-tests-report
           path: frontend/junit.xml
